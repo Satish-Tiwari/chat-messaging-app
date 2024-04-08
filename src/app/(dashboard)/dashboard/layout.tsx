@@ -3,11 +3,13 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import { ReactNode } from 'react'
 import Link from 'next/link'
-import { Icons,  Icon } from '@/components/Icons'
+import { Icons, Icon } from '@/components/Icons'
 import Image from 'next/image'
 import SignOutButton from '@/components/SignOutButton'
 import FriendRequestSidebarOption from '@/components/FriendRequestSidebarOption'
 import { fetchRedis } from '@/helpers/redis'
+import { getFriendsByUserId } from '@/helpers/get-friends-by-user-id'
+import SidebarChatList from '@/components/SidebarChatList'
 
 interface layoutProps {
     children: ReactNode
@@ -16,8 +18,8 @@ interface layoutProps {
 interface SidebarOptions {
     id: number
     name: string
-    href: string 
-    Icon: Icon 
+    href: string
+    Icon: Icon
 }
 
 const sidebarOptions: SidebarOptions[] = [
@@ -33,7 +35,14 @@ const layout = async ({ children }: layoutProps) => {
     const session = await getServerSession(authOptions);
     if (!session) notFound();
 
-    const unseenRequestCount = (await fetchRedis('smembers', `user:${session.user.id}:incoming_friend_requests`) as any as User[] ).length
+    const friends = await getFriendsByUserId(session.user.id);
+
+    const unseenRequestCount = (
+        await fetchRedis(
+            'smembers',
+            `user:${session.user.id}:incoming_friend_requests`
+        ) as any as User[]
+    ).length
 
     return (
         <div className='w-full flex h-screen '>
@@ -41,21 +50,24 @@ const layout = async ({ children }: layoutProps) => {
                 <Link href={'/dashboard'} className='flex h-16 shrink-0 items-center'>
                     <Icons.Logo className='h-8 w-auto text-indigo-600' />
                 </Link>
-                <div className="text-xs font-semibold leading-6 text-gray-400"> Your chats</div>
+                {friends.length > 0 && <div className="text-xs font-semibold leading-6 text-gray-400"> Your chats
+                </div>}
 
                 <nav className='flex flex-1 flex-col'>
                     <ul role='list' className='flex flex-1 flex-col gap-y-7'>
-                        <li> chat that this user has</li>
+                        <li>
+                            <SidebarChatList sessionId={session?.user?.id} friends={friends} />
+                        </li>
                         <li>
                             <div className='text-xs font-semibold leading-6 text-gray-400'>Overview</div>
-                            
+
                             <ul role='list' className='-mx-2 mt-2 space-y-1'>
-                                {sidebarOptions.map((option)=>{
+                                {sidebarOptions.map((option) => {
                                     const Icon = Icons[option.Icon]
-                                    return(
+                                    return (
                                         <li key={option.id}>
                                             <Link href={option.href}
-                                            className='text-gray-700 hover:text-indigo-600 hover:bg-gray-50 group flex gap-3 rounded-md p-2 text-sm font-semibold'
+                                                className='text-gray-700 hover:text-indigo-600 hover:bg-gray-50 group flex gap-3 rounded-md p-2 text-sm font-semibold'
                                             >
                                                 <span className='text-gray-400 border-gray-200 group-hover:border-indigo-600 group-hover:text-indigo-600 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-text-[0.625rem] font-medium bg-white'>
                                                     <Icon className='h-4 w-4' />
@@ -67,25 +79,25 @@ const layout = async ({ children }: layoutProps) => {
                                         </li>
                                     )
                                 })}
+                                <li>
+                                    <FriendRequestSidebarOption
+                                        sessionId={session.user.id}
+                                        initialUnseenRequestCount={unseenRequestCount}
+                                    />
+                                </li>
                             </ul>
                         </li>
 
-                        <li>
-                            <FriendRequestSidebarOption
-                            sessionId={session.user.id}
-                            initialUnseenRequestCount={unseenRequestCount}
-                            />
-                        </li>
 
                         <li className='-mx-6 mt-auto flex items-center'>
                             <div className='flex flex-1 items-center gap-x-4 px-6 py-3 text-sm font-semibold leading-6 text-gray-900'>
                                 <div className='relative h-8 w-8 bg-gray-50'>
                                     <Image
-                                    fill 
-                                    referrerPolicy='no-referrer'
-                                    className='rounded-full'
-                                    src={session.user.image || ''} 
-                                    alt='Your profile picture'
+                                        fill
+                                        referrerPolicy='no-referrer'
+                                        className='rounded-full'
+                                        src={session.user.image || ''}
+                                        alt='Your profile picture'
                                     />
                                 </div>
 
@@ -98,7 +110,7 @@ const layout = async ({ children }: layoutProps) => {
                                 </div>
                             </div>
 
-                            <SignOutButton className='h-full aspect-square'/>
+                            <SignOutButton className='h-full aspect-square' />
                         </li>
                     </ul>
                 </nav>
